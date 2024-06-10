@@ -1,0 +1,11 @@
+#movie_filter{
+    color: grey;
+}
+
+#movie_filter li{
+    cursor: pointer;
+}
+
+#movie_filter li.active{
+    color: white;
+}
