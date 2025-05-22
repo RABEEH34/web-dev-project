@@ -1,0 +1,74 @@
+# azure-pipelines.yml for PHP
+trigger:
+  branches:
+    include:
+      - main
+      - releases/*
+  paths:
+    exclude:
+      - README.md
+      - documentation/*
+
+variables:
+  system.debug: false
+
+stages:
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: Build
+        displayName: 'PHP Build'
+        pool:
+          vmImage: 'ubuntu-latest' # Recommended for PHP
+        steps:
+          # Install PHP
+          - task: UsePHPVersion@0
+            displayName: 'Use PHP 8.x'
+            inputs:
+              versionSpec: '8.x'
+              
+          # Install Composer
+          - script: |
+              curl -sS https://getcomposer.org/installer | php
+              sudo mv composer.phar /usr/local/bin/composer
+            displayName: 'Install Composer'
+            
+          # Install dependencies
+          - script: composer install --no-interaction --prefer-dist --optimize-autoloader
+            displayName: 'Composer Install'
+            
+          # Run PHPUnit tests
+          - script: ./vendor/bin/phpunit --coverage-clover clover.xml
+            displayName: 'Run PHPUnit Tests'
+            
+          # Publish code coverage
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Code Coverage'
+            inputs:
+              codeCoverageTool: 'Clover'
+              summaryFileLocation: 'clover.xml'
+              
+          # Linting check
+          - script: find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
+            displayName: 'PHP Syntax Check'
+            
+          # Security check (PHPStan)
+          - script: ./vendor/bin/phpstan analyse
+            displayName: 'Static Analysis'
+            continueOnError: true  # Make this non-blocking initially
+            
+          # Package artifacts (if needed)
+          - task: ArchiveFiles@2
+            displayName: 'Create Deployment Package'
+            inputs:
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/package.zip'
+              
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Artifacts'
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
